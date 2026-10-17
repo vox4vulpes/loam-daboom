@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Small-size Loam DaBoom icon (16-48 px) and web favicon: the same 3x3
+       drum pads as icon.svg, flat so they stay crisp in tabs and taskbars. -->
+  <rect x="1" y="1" width="62" height="62" rx="12" fill="#e9e1cc" stroke="#a99c79" stroke-width="2"/>
+  <rect x="6" y="6" width="16" height="16" rx="3.5" fill="#c08f17"/>
+  <rect x="24" y="6" width="16" height="16" rx="3.5" fill="#336f6b"/>
+  <rect x="42" y="6" width="16" height="16" rx="3.5" fill="#b85540"/>
+  <rect x="6" y="24" width="16" height="16" rx="3.5" fill="#5f7344"/>
+  <rect x="24" y="24" width="16" height="16" rx="3.5" fill="#f0a830"/>
+  <rect x="42" y="24" width="16" height="16" rx="3.5" fill="#8a78a3"/>
+  <rect x="6" y="42" width="16" height="16" rx="3.5" fill="#b85540"/>
+  <rect x="24" y="42" width="16" height="16" rx="3.5" fill="#8a78a3"/>
+  <rect x="42" y="42" width="16" height="16" rx="3.5" fill="#336f6b"/>
+</svg>
