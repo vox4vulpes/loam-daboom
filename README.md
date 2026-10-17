@@ -34,9 +34,15 @@ F#1 closed hat...).
 Sixteen steps per voice. Click a step once for a hit, again for an accent,
 again to clear. **PLAY** (or `Space`) runs it at **BPM** with optional
 **SWING**; four patterns, **A–D**, switch at the end of the bar while
-playing. **M** mutes a row. The **KIT** menu (808, 909, Lo-Fi) resets every
-voice's sound without touching the patterns, and **MASTER** has volume,
-drive and reverb. Patterns and sounds are remembered in the browser.
+playing. **M** mutes a row. **MASTER** has volume, drive and reverb.
+
+## Kits
+
+The **KIT** menu loads a factory kit (808, 909, Lo-Fi) or one of yours,
+without touching the patterns. To build your own, pick each voice's version
+from its name above the pad — say the 909 kick with the Lo-Fi snare and the
+808 hats — tweak the knobs, type a name and **SAVE**. Your kits, patterns
+and sounds are remembered in the browser.
 
 And the little egret next to the name has something to say.
 

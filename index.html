@@ -157,6 +157,20 @@
   .knob-readout{font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--ink-soft); font-variant-numeric:tabular-nums;}
 
   /* ---------- voice strips ---------- */
+  /* Each slot's title is a menu: which kit's version of that voice to use. */
+  .slot-sound{
+    width:100%; text-align:center; text-align-last:center; padding:3px 2px; border-radius:5px;
+    font-family:'Big Shoulders Inclined','Arial Narrow',sans-serif; font-weight:700; font-size:13px; letter-spacing:.06em;
+    color:var(--accent); background:transparent; border:1px dashed transparent; cursor:pointer;
+  }
+  .slot-sound:hover, .slot-sound:focus-visible{border-color:var(--groove-dark); background:var(--panel);}
+  .slot-src{font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--ink-soft); margin-top:-6px;}
+  .kit-row{display:flex; gap:6px; align-items:center; flex-wrap:wrap;}
+  .kit-row input{
+    flex:1 1 90px; min-width:0; font-family:'IBM Plex Sans',sans-serif; font-size:12px; padding:6px 8px;
+    border-radius:6px; border:1px solid var(--groove-dark); background:var(--panel); color:var(--ink);
+  }
+  .kit-status{font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-soft); min-height:1.2em; margin:0;}
   .voices{display:grid; grid-template-columns:repeat(8, minmax(0,1fr)); gap:8px;}
   .voice{padding:10px 6px 10px; gap:8px; align-items:center;}
   .voice .module-title{font-size:12px; letter-spacing:.08em;}
@@ -245,7 +259,12 @@
     <section class="module" style="--accent:var(--sage)">
       <h2 class="module-title">Kit</h2>
       <select id="kit" aria-label="Kit"></select>
-      <p class="label" style="margin:0">Sets every voice's sound; patterns stay.</p>
+      <div class="kit-row">
+        <input id="kit-name" type="text" maxlength="24" placeholder="Kit name" autocomplete="off" aria-label="Name for your kit">
+        <button class="chip-btn" type="button" id="kit-save">SAVE</button>
+        <button class="chip-btn" type="button" id="kit-delete">DELETE</button>
+      </div>
+      <p class="kit-status" id="kit-status" aria-live="polite">Pick each voice's version from its name above the pad.</p>
     </section>
     <section class="module" style="--accent:var(--mustard)">
       <h2 class="module-title">Master</h2>
@@ -305,6 +324,13 @@
   ];
   VOICES.forEach(function(v){ v.knobs.push({ id:'level', label:'LEVEL', min:0, max:100, def:80, unit:'%' }); });
 
+  // Eight slots, one per voice (pad, key, MIDI note, sequencer row). A kit
+  // picks, for each slot, which version of that voice it uses -- e.g. the
+  // 909 kick with the Lo-Fi snare -- and the knobs tweak it from there.
+  var TYPES = {};
+  VOICES.forEach(function(v){ TYPES[v.id] = v; });
+  var SLOTS = VOICES.map(function(v){ return { id: v.id, key: v.key, gm: v.gm }; });
+
   var KITS = {
     '808': {},   // the defaults above
     '909': { kick:{ tune:56, decay:300, punch:85 }, snare:{ tune:220, decay:160, snappy:80 }, clap:{ tone:1500, decay:200, spread:8 },
@@ -312,6 +338,22 @@
     'Lo-Fi': { kick:{ tune:45, decay:700, punch:25 }, snare:{ tune:170, decay:260, snappy:40 }, clap:{ tone:900, decay:350, spread:14 },
                ch:{ tone:5500, decay:80 }, oh:{ tone:5000, decay:600 }, tom:{ tune:100, decay:450 }, rim:{ tune:1300, decay:50 }, cow:{ tune:480, decay:350 } }
   };
+  var FACTORY_KITS = Object.keys(KITS);
+
+  // A sound: one type's knob values as a factory kit has them.
+  function factorySound(type, kit){
+    var params = {};
+    TYPES[type].knobs.forEach(function(k){ params[k.id] = k.def; });
+    var over = (KITS[kit] || {})[type] || {};
+    Object.keys(over).forEach(function(k){ params[k] = over[k]; });
+    return { type: type, src: kit, params: params };
+  }
+  function factoryKit(kit){
+    var slots = {};
+    SLOTS.forEach(function(sl){ slots[sl.id] = factorySound(sl.id, kit); });
+    return slots;
+  }
+  function cloneSlots(slots){ return JSON.parse(JSON.stringify(slots)); }
 
   // Default patterns: 16 steps per voice. '.' off, 'x' hit, 'X' accent.
   var FACTORY_PATTERNS = {
@@ -326,9 +368,9 @@
   // ---------- state ----------
   var state = {
     bpm: 120, swing: 0, volume: 75, drive: 0, reverb: 15, kit: '808',
-    pattern: 'A', patterns: {}, sounds: {}, muted: {}
+    pattern: 'A', patterns: {}, slots: {}, muted: {}
   };
-  function blankPattern(){ var p = {}; VOICES.forEach(function(v){ p[v.id] = new Array(16).fill(0); }); return p; }
+  function blankPattern(){ var p = {}; SLOTS.forEach(function(sl){ p[sl.id] = new Array(16).fill(0); }); return p; }
   function parsePattern(spec){
     var p = blankPattern();
     Object.keys(spec).forEach(function(id){
@@ -337,31 +379,35 @@
     return p;
   }
   PATTERN_NAMES.forEach(function(n){ state.patterns[n] = parsePattern(FACTORY_PATTERNS[n] || {}); });
-  function kitSounds(kit){
-    var s = {};
-    VOICES.forEach(function(v){
-      s[v.id] = {};
-      v.knobs.forEach(function(k){ s[v.id][k.id] = k.def; });
-      var over = (KITS[kit] || {})[v.id] || {};
-      Object.keys(over).forEach(function(k){ s[v.id][k] = over[k]; });
-    });
-    return s;
+  state.slots = factoryKit('808');
+
+  var KITS_KEY = 'loam-daboom/kits/v1';
+  var userKits = {};
+  try { userKits = JSON.parse(localStorage.getItem(KITS_KEY) || '{}') || {}; } catch (err) { userKits = {}; }
+  function storeUserKits(){
+    try { localStorage.setItem(KITS_KEY, JSON.stringify(userKits)); return true; } catch (err) { return false; }
   }
-  state.sounds = kitSounds('808');
 
   try {
     var saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
-    if (saved && saved.patterns && saved.sounds) {
+    if (saved && saved.patterns) {
       Object.keys(state).forEach(function(k){ if (saved[k] !== undefined) state[k] = saved[k]; });
+      if (saved.sounds && !saved.slots) {          // saved before kits had slots
+        state.slots = {};
+        SLOTS.forEach(function(sl){ state.slots[sl.id] = { type: sl.id, src: saved.kit || '808', params: saved.sounds[sl.id] }; });
+      }
     }
   } catch (err) { /* storage unavailable: start fresh */ }
   var saveTimer = null;
-  function save(){
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(function(){
-      try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (err) {}
-    }, 300);
+  function saveNow(){
+    clearTimeout(saveTimer); saveTimer = null;
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (err) {}
   }
+  function save(){                                     // debounced: knob drags save once they settle
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveNow, 300);
+  }
+  window.addEventListener('pagehide', function(){ if (saveTimer) saveNow(); });
 
   // ---------- audio ----------
   var ctx = null, bus = null, driveShaper = null, driveDry = null, driveWet = null, masterGain = null, reverbSend = null;
@@ -483,12 +529,12 @@
     }
   };
 
-  function trigger(voiceId, when, accent){
+  function trigger(slotId, when, accent){
     if (!ctx) return;
-    var s = state.sounds[voiceId];
-    var lvl = gain(); lvl.gain.value = s.level / 100; lvl.connect(bus);
-    SYNTH[voiceId](s, when, accent ? 1 : 0.7, lvl);
-    flashPad(voiceId, when);
+    var sound = state.slots[slotId];
+    var lvl = gain(); lvl.gain.value = sound.params.level / 100; lvl.connect(bus);
+    SYNTH[sound.type](sound.params, when, accent ? 1 : 0.7, lvl);
+    flashPad(slotId, when);
   }
 
   // ---------- sequencer (look-ahead scheduler) ----------
@@ -497,9 +543,9 @@
   function stepDuration(){ return 60 / state.bpm / 4; }
   function scheduleStep(step, time){
     var pat = state.patterns[state.pattern];
-    VOICES.forEach(function(v){
-      var val = pat[v.id][step];
-      if (val && !state.muted[v.id]) trigger(v.id, time, val === 2);
+    SLOTS.forEach(function(sl){
+      var val = pat[sl.id][step];
+      if (val && !state.muted[sl.id]) trigger(sl.id, time, val === 2);
     });
     visualQueue.push({ step: step, time: time });
   }
@@ -589,13 +635,67 @@
       function(){ return state[m[1]]; }, function(v){ state[m[1]] = v; applyMaster(); });
   });
 
-  var kitSelect = document.getElementById('kit');
-  Object.keys(KITS).forEach(function(k){ kitSelect.add(new Option(k, k)); });
-  kitSelect.value = state.kit;
+  // ---------- kits: factory ones, and your own ----------
+  var kitSelect = document.getElementById('kit'), kitName = document.getElementById('kit-name');
+  function setKitStatus(text){ document.getElementById('kit-status').textContent = text; }
+  function renderKitSelect(){
+    kitSelect.textContent = '';
+    var factory = document.createElement('optgroup'); factory.label = 'Factory';
+    FACTORY_KITS.forEach(function(k){ factory.appendChild(new Option(k, 'f:' + k)); });
+    kitSelect.appendChild(factory);
+    var names = Object.keys(userKits).sort();
+    if (names.length) {
+      var mine = document.createElement('optgroup'); mine.label = 'Your kits';
+      names.forEach(function(k){ mine.appendChild(new Option(k, 'u:' + k)); });
+      kitSelect.appendChild(mine);
+    }
+    var current = (userKits[state.kit] ? 'u:' : 'f:') + state.kit;
+    if (!userKits[state.kit] && FACTORY_KITS.indexOf(state.kit) < 0) {
+      kitSelect.appendChild(new Option(state.kit + ' (edited)', 'x:'));   // a kit that's only in this session
+      current = 'x:';
+    }
+    kitSelect.value = current;
+    document.getElementById('kit-delete').disabled = !userKits[state.kit];
+  }
+  function loadKit(name, slots){
+    state.kit = name; state.slots = cloneSlots(slots);
+    SLOTS.forEach(function(sl){ renderSlot(sl.id); });
+    renderKitSelect(); save();
+  }
   kitSelect.addEventListener('change', function(){
-    state.kit = kitSelect.value; state.sounds = kitSounds(state.kit);
-    knobEls.forEach(function(k){ k.render(); }); save();
+    var v = kitSelect.value, name = v.slice(2);
+    if (v.indexOf('f:') === 0) loadKit(name, factoryKit(name));
+    else if (v.indexOf('u:') === 0) loadKit(name, userKits[name]);
+    setKitStatus('');
   });
+  function saveKit(){
+    var name = kitName.value.trim() || (userKits[state.kit] ? state.kit : 'My kit ' + (Object.keys(userKits).length + 1));
+    if (FACTORY_KITS.indexOf(name) >= 0) name += ' (mine)';
+    var existed = !!userKits[name];
+    userKits[name] = cloneSlots(state.slots);
+    var stored = storeUserKits();
+    state.kit = name; kitName.value = '';
+    renderKitSelect(); saveNow();
+    setKitStatus(!stored ? 'Saved for this session only (browser storage is unavailable)'
+                         : (existed ? 'Updated \u201c' : 'Saved \u201c') + name + '\u201d');
+  }
+  document.getElementById('kit-save').addEventListener('click', saveKit);
+  kitName.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); saveKit(); } });
+  document.getElementById('kit-delete').addEventListener('click', function(){
+    var name = state.kit;
+    if (!userKits[name] || !window.confirm('Delete your kit \u201c' + name + '\u201d?')) return;
+    delete userKits[name]; storeUserKits();
+    loadKit('808', factoryKit('808'));
+    setKitStatus('Deleted \u201c' + name + '\u201d');
+  });
+  // Changing a sound or a knob makes the kit "edited" until it's saved.
+  function markKitEdited(){
+    if (FACTORY_KITS.indexOf(state.kit) >= 0 || userKits[state.kit]) {
+      var base = state.kit;
+      var same = JSON.stringify(state.slots) === JSON.stringify(userKits[base] || factoryKit(base));
+      if (!same) { state.kit = base.replace(/ \(edited\)$/, '') + ' (edited)'; renderKitSelect(); }
+    }
+  }
 
   var patternBox = document.getElementById('pattern-buttons'), patternButtons = {};
   PATTERN_NAMES.forEach(function(n){
@@ -619,25 +719,50 @@
     state.patterns[state.pattern] = blankPattern(); renderSteps(); save();
   });
 
-  // ---------- UI: voice strips and pads ----------
-  var voicesEl = document.getElementById('voices'), pads = {};
-  VOICES.forEach(function(v, i){
+  // ---------- UI: slot strips and pads ----------
+  var voicesEl = document.getElementById('voices'), pads = {}, strips = {};
+  SLOTS.forEach(function(sl){
     var strip = document.createElement('section');
-    strip.className = 'module voice'; strip.style.setProperty('--accent', v.color);
-    strip.innerHTML = '<h2 class="module-title">' + v.name + '</h2>';
+    strip.className = 'module voice';
+    voicesEl.appendChild(strip); strips[sl.id] = strip;
+  });
+  function renderSlot(slotId){
+    var sl = SLOTS.filter(function(x){ return x.id === slotId; })[0];
+    var sound = state.slots[slotId], type = TYPES[sound.type], strip = strips[slotId];
+    strip.textContent = '';
+    strip.style.setProperty('--accent', type.color);
+
+    // Only this voice's versions: KICK 808 / KICK 909 / KICK Lo-Fi...
+    var menu = document.createElement('select');
+    menu.className = 'slot-sound'; menu.setAttribute('aria-label', type.name + ' version');
+    FACTORY_KITS.forEach(function(k){ menu.appendChild(new Option(type.name + ' ' + k, k)); });
+    menu.value = sound.src;
+    menu.addEventListener('change', function(){
+      state.slots[slotId] = factorySound(slotId, menu.value);
+      renderSlot(slotId); markKitEdited(); save();
+      if (ctx) trigger(slotId, ctx.currentTime, true);   // let you hear what you picked
+    });
+    strip.appendChild(menu);
+
     var pad = document.createElement('button');
     pad.type = 'button'; pad.className = 'pad';
-    pad.textContent = (v.key === 'Comma' ? ',' : v.key.replace('Key', ''));
-    pad.setAttribute('aria-label', v.name + ' pad');
-    pad.addEventListener('pointerdown', function(e){ e.preventDefault(); ensurePower(); trigger(v.id, ctx.currentTime, true); });
-    strip.appendChild(pad); pads[v.id] = pad;
+    pad.textContent = (sl.key === 'Comma' ? ',' : sl.key.replace('Key', ''));
+    pad.setAttribute('aria-label', type.name + ' pad');
+    pad.addEventListener('pointerdown', function(e){ e.preventDefault(); ensurePower(); trigger(slotId, ctx.currentTime, true); });
+    strip.appendChild(pad); pads[slotId] = pad;
+
     var row = document.createElement('div'); row.className = 'knob-row'; strip.appendChild(row);
-    v.knobs.forEach(function(k){
-      addKnob(row, Object.assign({ ariaLabel: v.name + ' ' + k.label }, k), v.color,
-        function(){ return state.sounds[v.id][k.id]; }, function(val){ state.sounds[v.id][k.id] = val; });
+    type.knobs.forEach(function(k){
+      row.appendChild(buildKnob(Object.assign({ ariaLabel: type.name + ' ' + k.label }, k), type.color,
+        function(){ return state.slots[slotId].params[k.id]; },
+        function(val){ state.slots[slotId].params[k.id] = val; markKitEdited(); save(); }));
     });
-    voicesEl.appendChild(strip);
-  });
+
+    if (seqNames[slotId]) {                                // the sequencer row follows the sound
+      seqNames[slotId].textContent = type.name;
+      seqRows[slotId].style.setProperty('--row-color', type.color);
+    }
+  }
   var padTimers = {};
   function flashPad(id, when){
     var delay = Math.max(0, (when - ctx.currentTime) * 1000);
@@ -649,7 +774,7 @@
   }
 
   // ---------- UI: sequencer grid ----------
-  var seqEl = document.getElementById('seq'), stepEls = {}, headNums = [];
+  var seqEl = document.getElementById('seq'), stepEls = {}, headNums = [], seqRows = {}, seqNames = {};
   var head = document.createElement('div'); head.className = 'seq-row seq-head';
   head.appendChild(document.createElement('span'));
   for (var s = 0; s < 16; s++) {
@@ -657,8 +782,10 @@
     head.appendChild(num); headNums.push(num);
   }
   seqEl.appendChild(head);
-  VOICES.forEach(function(v){
+  SLOTS.forEach(function(sl){
+    var v = { id: sl.id, name: TYPES[state.slots[sl.id].type].name, color: TYPES[state.slots[sl.id].type].color };
     var row = document.createElement('div'); row.className = 'seq-row'; row.style.setProperty('--row-color', v.color);
+    seqRows[v.id] = row;
     var name = document.createElement('span'); name.className = 'seq-name';
     var mute = document.createElement('button'); mute.type = 'button'; mute.className = 'mute'; mute.textContent = 'M';
     mute.setAttribute('aria-label', 'Mute ' + v.name);
@@ -668,7 +795,8 @@
       mute.setAttribute('aria-pressed', state.muted[v.id] ? 'true' : 'false'); save();
     });
     mute.classList.toggle('is-muted', !!state.muted[v.id]); row.classList.toggle('is-muted', !!state.muted[v.id]);
-    name.appendChild(mute); name.appendChild(document.createTextNode(v.name));
+    var nameText = document.createElement('span'); nameText.textContent = v.name; seqNames[v.id] = nameText;
+    name.appendChild(mute); name.appendChild(nameText);
     row.appendChild(name);
     stepEls[v.id] = [];
     for (var i = 0; i < 16; i++) {
@@ -690,13 +818,15 @@
     b.dataset.v = v;
     b.setAttribute('aria-label', id + ' step ' + (step + 1) + (v === 2 ? ' accent' : v ? ' on' : ' off'));
   }
-  function renderSteps(){ VOICES.forEach(function(v){ for (var i = 0; i < 16; i++) renderStep(v.id, i); }); }
+  function renderSteps(){ SLOTS.forEach(function(sl){ for (var i = 0; i < 16; i++) renderStep(sl.id, i); }); }
   function showStep(step){
     headNums.forEach(function(n, i){ n.classList.toggle('is-now', i === step); });
-    VOICES.forEach(function(v){ stepEls[v.id].forEach(function(b, i){ b.classList.toggle('is-now', i === step); }); });
+    SLOTS.forEach(function(sl){ stepEls[sl.id].forEach(function(b, i){ b.classList.toggle('is-now', i === step); }); });
     document.getElementById('step-readout').textContent = step < 0 ? '—' : step + 1;
   }
   renderPatternButtons(); renderSteps();
+  SLOTS.forEach(function(sl){ renderSlot(sl.id); });
+  renderKitSelect();
 
   // ---------- power, keys, MIDI ----------
   function setPower(on){
@@ -713,7 +843,7 @@
   document.getElementById('play').addEventListener('click', function(){ setPlaying(!playing); });
 
   var BY_KEY = {}, BY_GM = {};
-  VOICES.forEach(function(v){ BY_KEY[v.key] = v.id; BY_GM[v.gm] = v.id; });
+  SLOTS.forEach(function(sl){ BY_KEY[sl.key] = sl.id; BY_GM[sl.gm] = sl.id; });
   BY_GM[35] = 'kick'; BY_GM[40] = 'snare'; BY_GM[44] = 'ch'; BY_GM[41] = 'tom'; BY_GM[43] = 'tom'; BY_GM[47] = 'tom'; BY_GM[48] = 'tom'; BY_GM[50] = 'tom';
   window.addEventListener('keydown', function(e){
     var tag = e.target && e.target.tagName;
