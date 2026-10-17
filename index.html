@@ -254,6 +254,14 @@
         <span class="chip-row" id="pattern-buttons" role="group" aria-label="Pattern"></span>
         <button class="chip-btn" type="button" id="clear" title="Clear the current pattern">CLEAR</button>
       </div>
+      <div class="kit-row">
+        <span class="label">LIBRARY</span>
+        <select id="groove" aria-label="Pattern library: load a groove into the current pattern"></select>
+        <input id="groove-name" type="text" maxlength="24" placeholder="Groove name" autocomplete="off" aria-label="Name for the current pattern">
+        <button class="chip-btn" type="button" id="groove-save" title="Save the current pattern to the library">SAVE</button>
+        <button class="chip-btn" type="button" id="groove-delete">DELETE</button>
+      </div>
+      <p class="kit-status" id="groove-status" aria-live="polite"></p>
       <div class="knob-row" id="transport-knobs"></div>
     </section>
     <section class="module" style="--accent:var(--sage)">
@@ -363,6 +371,20 @@
     D: { kick:'X......x..x.....', clap:'........X.......', ch:'x.x.xxx.x.x.x.xx', rim:'...x.......x....', cow:'..............x.' }
   };
   var PATTERN_NAMES = ['A', 'B', 'C', 'D'];
+
+  // The pattern library: grooves you can load into any of A-D, whatever the
+  // kit. Yours are saved separately from kits.
+  var FACTORY_GROOVES = {
+    'House':       FACTORY_PATTERNS.A,
+    'Boom Bap':    FACTORY_PATTERNS.B,
+    'Breakbeat':   FACTORY_PATTERNS.C,
+    'Trap':        FACTORY_PATTERNS.D,
+    'Techno':      { kick:'X...X...X...X...', clap:'....X.......X...', ch:'x.x.x.x.x.x.x.x.', oh:'..x...x...x...x.' },
+    'Garage':      { kick:'X.........X.....', snare:'....X.......X...', ch:'..x...x.x.x...x.', oh:'......x.......x.' },
+    'Lazy Groove': { kick:'X.....x...x..x..', snare:'....X.......X..x', ch:'x..xx.x.x..xx.x.', rim:'..x.......x.....' },
+    'Half-Time':   { kick:'X.........x.....', snare:'........X.......', ch:'x.x.x.x.x.x.x.x.', oh:'..............x.' }
+  };
+  var GROOVES_KEY = 'loam-daboom/patterns/v1';
   var STORE_KEY = 'loam-daboom/state/v1';
 
   // ---------- state ----------
@@ -714,7 +736,59 @@
       patternButtons[n].setAttribute('aria-pressed', n === state.pattern ? 'true' : 'false');
     });
   }
-  function setPattern(n){ state.pattern = n; renderPatternButtons(); renderSteps(); save(); }
+  function setPattern(n){ state.pattern = n; renderPatternButtons(); renderSteps(); save(); if (grooveSelect) renderGrooveSelect(); }
+  // ---------- pattern library ----------
+  var userGrooves = {};
+  try { userGrooves = JSON.parse(localStorage.getItem(GROOVES_KEY) || '{}') || {}; } catch (err) { userGrooves = {}; }
+  function storeUserGrooves(){
+    try { localStorage.setItem(GROOVES_KEY, JSON.stringify(userGrooves)); return true; } catch (err) { return false; }
+  }
+  var grooveSelect = document.getElementById('groove'), grooveName = document.getElementById('groove-name');
+  function setGrooveStatus(text){ document.getElementById('groove-status').textContent = text; }
+  function renderGrooveSelect(selected){
+    grooveSelect.textContent = '';
+    var placeholder = new Option('\u2014 load into ' + state.pattern + ' \u2014', '');
+    placeholder.disabled = true;
+    grooveSelect.appendChild(placeholder);
+    var factory = document.createElement('optgroup'); factory.label = 'Factory';
+    Object.keys(FACTORY_GROOVES).forEach(function(n){ factory.appendChild(new Option(n, 'f:' + n)); });
+    grooveSelect.appendChild(factory);
+    var names = Object.keys(userGrooves).sort();
+    if (names.length) {
+      var mine = document.createElement('optgroup'); mine.label = 'Your grooves';
+      names.forEach(function(n){ mine.appendChild(new Option(n, 'u:' + n)); });
+      grooveSelect.appendChild(mine);
+    }
+    grooveSelect.value = selected || '';
+    document.getElementById('groove-delete').disabled = (grooveSelect.value || '').indexOf('u:') !== 0;
+  }
+  grooveSelect.addEventListener('change', function(){
+    var v = grooveSelect.value, name = v.slice(2);
+    state.patterns[state.pattern] = v.indexOf('f:') === 0 ? parsePattern(FACTORY_GROOVES[name]) : JSON.parse(JSON.stringify(userGrooves[name]));
+    renderSteps(); save();
+    setGrooveStatus('Loaded \u201c' + name + '\u201d into ' + state.pattern);
+    renderGrooveSelect(v);
+  });
+  function saveGroove(){
+    var name = grooveName.value.trim() || 'My groove ' + (Object.keys(userGrooves).length + 1);
+    if (FACTORY_GROOVES[name]) name += ' (mine)';
+    var existed = !!userGrooves[name];
+    userGrooves[name] = JSON.parse(JSON.stringify(state.patterns[state.pattern]));
+    var stored = storeUserGrooves();
+    grooveName.value = '';
+    renderGrooveSelect('u:' + name);
+    setGrooveStatus(!stored ? 'Saved for this session only (browser storage is unavailable)'
+                            : (existed ? 'Updated \u201c' : 'Saved \u201c') + name + '\u201d from ' + state.pattern);
+  }
+  document.getElementById('groove-save').addEventListener('click', saveGroove);
+  grooveName.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); saveGroove(); } });
+  document.getElementById('groove-delete').addEventListener('click', function(){
+    var v = grooveSelect.value, name = v.slice(2);
+    if (v.indexOf('u:') !== 0 || !window.confirm('Delete your groove \u201c' + name + '\u201d?')) return;
+    delete userGrooves[name]; storeUserGrooves();
+    renderGrooveSelect(); setGrooveStatus('Deleted \u201c' + name + '\u201d');
+  });
+
   document.getElementById('clear').addEventListener('click', function(){
     state.patterns[state.pattern] = blankPattern(); renderSteps(); save();
   });
@@ -824,7 +898,7 @@
     SLOTS.forEach(function(sl){ stepEls[sl.id].forEach(function(b, i){ b.classList.toggle('is-now', i === step); }); });
     document.getElementById('step-readout').textContent = step < 0 ? '—' : step + 1;
   }
-  renderPatternButtons(); renderSteps();
+  renderPatternButtons(); renderSteps(); renderGrooveSelect();
   SLOTS.forEach(function(sl){ renderSlot(sl.id); });
   renderKitSelect();
 

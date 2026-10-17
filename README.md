@@ -36,13 +36,21 @@ again to clear. **PLAY** (or `Space`) runs it at **BPM** with optional
 **SWING**; four patterns, **A–D**, switch at the end of the bar while
 playing. **M** mutes a row. **MASTER** has volume, drive and reverb.
 
+## Pattern library
+
+**LIBRARY** loads a groove into the pattern you're on (A–D): factory ones —
+House, Boom Bap, Breakbeat, Trap, Techno, Garage, Lazy Groove, Half-Time —
+or your own. To keep a pattern, type a name and **SAVE**; **DELETE** removes
+one of yours. Grooves are saved separately from kits, so any groove plays on
+any kit.
+
 ## Kits
 
 The **KIT** menu loads a factory kit (808, 909, Lo-Fi) or one of yours,
 without touching the patterns. To build your own, pick each voice's version
 from its name above the pad — say the 909 kick with the Lo-Fi snare and the
-808 hats — tweak the knobs, type a name and **SAVE**. Your kits, patterns
-and sounds are remembered in the browser.
+808 hats — tweak the knobs, type a name and **SAVE**. Kits hold sounds only.
+Kits, grooves and your current patterns are remembered in the browser.
 
 And the little egret next to the name has something to say.
 
