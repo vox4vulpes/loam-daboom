@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <vector>
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_dsp/juce_dsp.h>
 #include "DrumKit.h"
@@ -71,7 +72,7 @@ private:
     double sampleRate = 44100.0;
     std::array<float, tableSize> sineTable {};
     std::array<Table, 6> metalTables {};   // the hats' six fixed squares
-    std::array<Hit, maxHits> hits;
+    std::vector<Hit> hits = std::vector<Hit> (maxHits);   // on the heap: each hit carries two 8 KB square tables
     std::uint64_t hitCounter = 0;
     std::uint32_t rng = 0x2545f491u;
 
