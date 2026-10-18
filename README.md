@@ -1,5 +1,9 @@
 # Loam DaBoom
 
+**[Play it in your browser](https://vox4vulpes.github.io/loam-daboom/)** ·
+VST3 plugin coming next ·
+part of the [Loam Synth Bundle](https://github.com/vox4vulpes/loam-synth-vst)
+
 小鷺 · Rhythm Composer — an eight-voice drum machine in the spirit of the
 TR-808 and TR-909, running entirely in the browser via the Web Audio API.
 Every sound is synthesised; there are no samples.
@@ -54,6 +58,13 @@ Kits, grooves and your current patterns are remembered in the browser.
 
 And the little egret next to the name has something to say.
 
+## Releases
+
+What changed in each version is in [CHANGELOG.md](CHANGELOG.md). To cut a
+release, add a `## [x.y.z]` section there and push a version tag; the
+[Release workflow](.github/workflows/release.yml) builds the VST3 plugin on
+Windows, macOS and Linux and publishes the zips and the installer.
+
 ## License
 
-GNU AGPLv3, like the rest of the repo.
+[GNU AGPLv3](LICENSE). Copyright (c) 2026 vox4vulpes
