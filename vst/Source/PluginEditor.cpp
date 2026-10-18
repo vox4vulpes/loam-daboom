@@ -150,7 +150,13 @@ void LoamLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& but
 juce::Font LoamLookAndFeel::getTextButtonFont (juce::TextButton&, int) { return sansFont (11.0f, true); }
 juce::Font LoamLookAndFeel::getComboBoxFont (juce::ComboBox& box)
 {
-    return sansFont ((bool) box.getProperties().getWithDefault ("slot", false) ? 13.0f : 12.0f, true);
+    return sansFont ((bool) box.getProperties().getWithDefault ("slot", false) ? 12.5f : 12.0f, true);
+}
+
+void LoamLookAndFeel::positionComboBoxText (juce::ComboBox& box, juce::Label& label)
+{
+    LookAndFeel_V4::positionComboBoxText (box, label);
+    label.setMinimumHorizontalScale (0.6f);   // "COWBELL LO-FI" squeezes rather than turning into "COWBELL..."
 }
 
 //==============================================================================

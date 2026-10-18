@@ -10,7 +10,7 @@ release workflow refuses to publish a version that has no section here.
   in the spirit of the 808/909 — kick, snare, clap, closed and open hats, tom,
   rim and cowbell, all synthesised — with a 16-step sequencer (accents, swing,
   patterns A–D), pads, computer-keyboard and MIDI play, 808 / 909 / Lo-Fi
-  kits and a master section. The VST3 version follows.
+  kits and a master section.
 - **DaBoom: your own kits.** Each voice's name above its pad picks which
   version to use (e.g. KICK 909 with SNARE Lo-Fi); tweak, name and **SAVE**
   it as your kit, load it from the KIT menu, **DELETE** it when done.
@@ -18,5 +18,11 @@ release workflow refuses to publish a version that has no section here.
   Breakbeat, Trap, Techno, Garage, Lazy Groove, Half-Time) or one of yours
   into the current pattern; **SAVE** the current pattern under a name.
   Grooves are kept separately from kits, so any groove plays on any kit.
+- **VST3 plugin and standalone app** for Windows, macOS and Linux, with the
+  same panel and sound as the web version. In a DAW the sequencer plays along
+  with the transport and tempo while PLAY is lit; patterns, kit and PLAY are
+  saved with the project; user kits and grooves are files in your app-data
+  folder; MIDI notes play the voices; every knob is automatable. Windows
+  installer included.
 - Browser-tab icon: a 3×3 panel of drum pads, also the app icon of the
   standalone version.

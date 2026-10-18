@@ -35,6 +35,7 @@ public:
                                bool isMouseOverButton, bool isButtonDown) override;
     juce::Font getTextButtonFont (juce::TextButton&, int buttonHeight) override;
     juce::Font getComboBoxFont (juce::ComboBox&) override;
+    void positionComboBoxText (juce::ComboBox&, juce::Label&) override;
 };
 
 // One knob as on the web panel: dial, label under it, value under that.

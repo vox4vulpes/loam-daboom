@@ -22,23 +22,8 @@ namespace
         return t >= time ? f1 : f0 * std::pow (f1 / f0, t / time);
     }
 
-    double polyBlep (double t, double dt)
-    {
-        if (t < dt)       { t /= dt; return t + t - t * t - 1.0; }
-        if (t > 1.0 - dt) { t = (t - 1.0) / dt; return t * t + t + t + 1.0; }
-        return 0.0;
-    }
-
-    // Band-limited like Web Audio's oscillators: polyBLEP square, plain triangle
-    // (its harmonics fall off fast enough), both starting at phase 0 going up.
-    float square (double phase, double dt)
-    {
-        auto v = phase < 0.5 ? 1.0 : -1.0;
-        v += polyBlep (phase, dt);
-        v -= polyBlep (std::fmod (phase + 0.5, 1.0), dt);
-        return (float) v;
-    }
-
+    // A plain triangle (its harmonics fall off fast enough to leave aliasing
+    // inaudible), starting at phase 0 going up like Web Audio's.
     float triangle (double phase)
     {
         return (float) (phase < 0.25 ? 4.0 * phase : phase < 0.75 ? 2.0 - 4.0 * phase : 4.0 * phase - 4.0);
@@ -52,6 +37,29 @@ namespace
 
     // The 808's six square waves at inharmonic ratios, the core of hats and cymbals.
     constexpr double metalFreqs[6] = { 205.3, 304.4, 369.6, 522.7, 540.0, 800.0 };
+
+    // 1 / ((2 / pi) Si(pi)): Chrome normalises its built-in square to this Gibbs peak.
+    constexpr float squareNorm = 0.848188f;
+}
+
+void DrumEngine::buildSquare (Table& t, double freq) const
+{
+    t.fill (0.0f);
+    for (int n = 1; n * freq < sampleRate * 0.5; n += 2)
+    {
+        const auto amp = (float) (4.0 / (n * juce::MathConstants<double>::pi)) * squareNorm;
+        for (int i = 0, at = 0; i < tableSize; ++i, at = (at + n) & (tableSize - 1))
+            t[(size_t) i] += amp * sineTable[(size_t) at];
+    }
+    t[tableSize] = t[0];
+}
+
+float DrumEngine::readTable (const Table& t, double phase)
+{
+    const auto x = phase * tableSize;
+    const auto i = (int) x;
+    const auto fr = (float) (x - i);
+    return t[(size_t) i] + (t[(size_t) i + 1] - t[(size_t) i]) * fr;
 }
 
 //==============================================================================
@@ -100,6 +108,11 @@ void DrumEngine::prepare (double newSampleRate, int maximumBlockSize)
 
     reverb.prepare ({ sampleRate, (juce::uint32) block, 2 });
 
+    for (int i = 0; i < tableSize; ++i)
+        sineTable[(size_t) i] = (float) std::sin (twoPi * i / tableSize);
+    for (int i = 0; i < 6; ++i)
+        buildSquare (metalTables[(size_t) i], metalFreqs[i]);
+
     // The web's impulse response: 1.6 s of stereo noise fading as (1 - x)^3,
     // fixed-seed here so a project sounds the same every time it's opened.
     if (reverbRate != sampleRate)
@@ -134,9 +147,7 @@ void DrumEngine::reset()
         h.active = false;
     chirpT = -1.0;
     reverb.reset();
-    driveMix.setCurrentAndTargetValue (drive / 100.0f);
-    volume.setCurrentAndTargetValue (volume.getTargetValue());
-    reverbSend.setCurrentAndTargetValue (reverbSend.getTargetValue());
+    masterSet = false;
 }
 
 void DrumEngine::setMaster (float volumePct, float drivePct, float reverbPct)
@@ -146,6 +157,16 @@ void DrumEngine::setMaster (float volumePct, float drivePct, float reverbPct)
         drive = drivePct;
         // The web's curve: tanh(g x) / tanh(g), g from 1 to 10.
         driveGain = 1.0f + drive / 100.0f * 9.0f;
+    }
+    // After prepare the first settings apply at once: a hit in the first block
+    // must not ride a fade-in from silence.
+    if (! masterSet)
+    {
+        driveMix.setCurrentAndTargetValue (drive / 100.0f);
+        volume.setCurrentAndTargetValue (volumePct / 100.0f);
+        reverbSend.setCurrentAndTargetValue (reverbPct / 100.0f * 0.6f);
+        masterSet = true;
+        return;
     }
     driveMix.setTargetValue (drive / 100.0f);
     volume.setTargetValue (volumePct / 100.0f);
@@ -221,8 +242,9 @@ void DrumEngine::trigger (int slot, const float* params, bool accent)
         case clap:      h.f1.setBandpass (h.p[0], 1.4, sampleRate); h.length = 3.0 * h.p[2] / 1000.0 + decay; break;
         case closedHat:
         case openHat:   h.f1.setBandpass (h.p[0], 1.0, sampleRate); h.f2.setHighpass (7000.0, 1.0, sampleRate); h.length = decay; break;
-        case rim:       h.f1.setBandpass (h.p[0], 3.0, sampleRate); h.length = decay; break;
-        case cowbell:   h.f1.setBandpass (2640.0, 1.5, sampleRate); h.length = decay; break;
+        case rim:       h.f1.setBandpass (h.p[0], 3.0, sampleRate); buildSquare (h.square[0], h.p[0] * 0.53); h.length = decay; break;
+        case cowbell:   h.f1.setBandpass (2640.0, 1.5, sampleRate); buildSquare (h.square[0], h.p[0]);
+                        buildSquare (h.square[1], h.p[0] * 1.48); h.length = decay; break;
         default:        h.length = decay; break;
     }
     h.length += 0.02;   // let the filters ring out
@@ -276,7 +298,7 @@ float DrumEngine::renderHit (Hit& h)
             float x = 0.0f;
             for (int i = 0; i < 6; ++i)
             {
-                x += square (h.phase[i], metalFreqs[i] / sr);
+                x += readTable (metalTables[(size_t) i], h.phase[i]);
                 advance (h.phase[i], metalFreqs[i], sr);
             }
             const auto peak = vel * (h.type == closedHat ? 0.35f : 0.32f);
@@ -300,7 +322,7 @@ float DrumEngine::renderHit (Hit& h)
         case rim:
         {
             const auto tune = (double) h.p[0];
-            const auto x = triangle (h.phase[0]) + square (h.phase[1], tune * 0.53 / sr);
+            const auto x = triangle (h.phase[0]) + readTable (h.square[0], h.phase[1]);
             advance (h.phase[0], tune, sr);
             advance (h.phase[1], tune * 0.53, sr);
             out = h.f1.process (x) * envelope (t, vel * 0.6f, decay);
@@ -309,7 +331,7 @@ float DrumEngine::renderHit (Hit& h)
         case cowbell:
         {
             const auto tune = (double) h.p[0];
-            const auto x = square (h.phase[0], tune / sr) + square (h.phase[1], tune * 1.48 / sr);
+            const auto x = readTable (h.square[0], h.phase[0]) + readTable (h.square[1], h.phase[1]);
             advance (h.phase[0], tune, sr);
             advance (h.phase[1], tune * 1.48, sr);
             out = h.f1.process (x) * envelope (t, vel * 0.35f, decay);

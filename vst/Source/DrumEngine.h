@@ -40,6 +40,14 @@ public:
 private:
     static constexpr int maxHits = 48;
 
+    // Square waves as Chrome makes them for the web version: one cycle summed
+    // from the odd harmonics below Nyquist, scaled so the full-band wave's
+    // Gibbs peak is 1 (about 0.848 of a plain +-1 square).
+    static constexpr int tableSize = 2048;
+    using Table = std::array<float, tableSize + 1>;
+    void buildSquare (Table&, double freq) const;
+    static float readTable (const Table&, double phase);
+
     struct Hit
     {
         bool active = false;
@@ -53,6 +61,7 @@ private:
         double chokeAt = 0.0;
         float chokeFrom = 0.0f;
         std::uint64_t order = 0;
+        Table square[2];   // the rim's and the cowbell's squares, built for their pitches
     };
 
     float renderHit (Hit&);
@@ -60,6 +69,8 @@ private:
     float noise();
 
     double sampleRate = 44100.0;
+    std::array<float, tableSize> sineTable {};
+    std::array<Table, 6> metalTables {};   // the hats' six fixed squares
     std::array<Hit, maxHits> hits;
     std::uint64_t hitCounter = 0;
     std::uint32_t rng = 0x2545f491u;
@@ -75,6 +86,7 @@ private:
     juce::AudioBuffer<float> sendBuffer;
     std::vector<float> dryBuffer;
     double reverbRate = 0.0;
+    bool masterSet = false;   // the first setMaster after prepare jumps straight there
 };
 
 // The sequencer's own clock (standalone, or a host without a transport):

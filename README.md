@@ -1,7 +1,7 @@
 # Loam DaBoom
 
 **[Play it in your browser](https://vox4vulpes.github.io/loam-daboom/)** ·
-VST3 plugin coming next ·
+**[Download the VST3 plugin and standalone app](https://github.com/vox4vulpes/loam-daboom/releases/latest)** ·
 part of the [Loam Synth Bundle](https://github.com/vox4vulpes/loam-synth-vst)
 
 小鷺 · Rhythm Composer — an eight-voice drum machine in the spirit of the
@@ -57,6 +57,33 @@ from its name above the pad — say the 909 kick with the Lo-Fi snare and the
 Kits, grooves and your current patterns are remembered in the browser.
 
 And the little egret next to the name has something to say.
+
+## VST3 plugin
+
+[`vst/`](vst/) is the same drum machine as a VST3 plugin and standalone app,
+built with JUCE: the same voices, kits, pattern library and panel, and the same
+sound — every voice is synthesised from the web version's formulas (down to
+Chrome's band-limited square waves), checked against it level for level.
+
+- **In a DAW** the sequencer plays along with the transport, in its tempo, while
+  **PLAY** is lit (it is when the plugin loads); the BPM knob dims, since the DAW
+  sets the tempo. Patterns A–D, the kit and PLAY are saved with the project.
+- **Standalone**, PLAY (or `Space`) runs the sequencer at **BPM**.
+- MIDI notes play the voices on General MIDI drum notes; every knob, mute,
+  BPM, swing and the master are automatable parameters.
+- Your kits and grooves are files under your user app-data folder, in
+  `Loam/Loam DaBoom/Kits` and `Loam/Loam DaBoom/Grooves`.
+
+To build it yourself (C++17; on Linux a few dev packages, see
+[`.github/workflows/build-vst.yml`](.github/workflows/build-vst.yml)):
+
+```sh
+cmake -S vst -B vst/build -DCMAKE_BUILD_TYPE=Release
+cmake --build vst/build --config Release
+```
+
+`vst/Tests/EngineTest.cpp` checks the sound engine and the sequencer clocks
+without any GUI dependencies (`-DLOAM_BUILD_PLUGIN=OFF`).
 
 ## Releases
 
